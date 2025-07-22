@@ -2,16 +2,19 @@ import time
 from recordingUser import record
 from whisper_transcript import whisper_transcript
 from chat import initialize_llm, get_gemma_response
+from caption import init_blip, caption_image
 
 # --- Configuration ---
 RECORDING_DURATION = 5  # in seconds
 SAMPLE_RATE = 16000  # Whisper works best with 16 kHz
 WAV_OUTPUT_FILE = "user_audio.wav"
+IMG_PTH = "image.jpg"
 
 # --- Initialization ---
 print("🔥 Rouge Coders Voice Assistant Initializing...")
 print("Loading LLM model... (This might take a moment)")
 llm = initialize_llm()
+processor, model = init_blip()
 chat_history = []
 print("✅ Ready! Let's talk.")
 print("-" * 20)
@@ -22,7 +25,7 @@ while True:
         user_text = None  # Reset user_text at the start of the loop
 
         # Step 1: Choose Input Method
-        choice = input("Choose input: (v)oice, (t)ext, or (q)uit? ").lower().strip()
+        choice = input("Choose input: (v)oice, (t)ext, (i)mage or (q)uit? ").lower().strip()
 
         if choice == 'v':
             # --- Voice Input Path ---
@@ -40,6 +43,13 @@ while True:
             # --- Quit Path ---
             print("👋 Catch you later! Goodbye.")
             break  # Exit the while loop
+
+        elif choice == 'i':
+
+            img_pth = input("Enter the image path: ")
+            inp = input("⌨️  Type your message: ")
+            caption = caption_image(processor, model, IMG_PTH)
+            user_text = f"The user said {inp} and the given image has {caption}"
 
         else:
             # --- Invalid Choice Path ---

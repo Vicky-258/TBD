@@ -13,24 +13,31 @@ def initialize_llm():
     )
 
 # This function will handle getting a response from the model
-def get_gemma_response(llm, chat_history, user_input):
+def get_gemma_response(llm, chat_history, user_input, context=None):
+    # Only the original user input is added to history
     chat_history.append({"role": "user", "content": user_input})
 
-    # The llm.create_chat_completion is often easier for managing history
+    # Construct enriched prompt if context is provided
+    full_prompt = (
+        f"Use the following context to help answer the question:\n{context}\n\nQuestion: {user_input}"
+        if context else user_input
+    )
+
     response = llm.create_chat_completion(
-        messages=chat_history,
+        messages=[*chat_history[:-1], {"role": "user", "content": full_prompt}],
         stream=True
     )
 
     response_text = ""
     print("🤖 Gemma:", end=" ", flush=True)
     for chunk in response:
-        delta = chunk['choices'][0]['delta']
-        if 'content' in delta:
-            text = delta['content']
+        delta = chunk["choices"][0]["delta"]
+        if "content" in delta:
+            text = delta["content"]
             print(text, end="", flush=True)
             response_text += text
-    print() # for a newline after the response
+    print()  # newline
 
     chat_history.append({"role": "assistant", "content": response_text})
     return response_text
+
