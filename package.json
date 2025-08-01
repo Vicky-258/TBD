@@ -1,0 +1,17 @@
+{
+  "name": "electron-app",
+  "version": "1.0.0",
+  "description": "My first Electron app",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "Your Name",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^37.2.3",
+    "electron-reload": "^2.0.0-alpha.1"
+  }
+}
