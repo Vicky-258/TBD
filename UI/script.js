@@ -1,10 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Duration for loading screen animation (grid and text)
-  const loadingAnimationDuration = 3000; // 3 seconds for grid and text
-  // Fallback duration for video screen
-  const videoDuration = 5000; // 5 seconds as fallback if video duration unknown
+  // Duration for loading screen animation
+  const loadingAnimationDuration = 3000;
+  const videoDuration = 5000;
 
-  // After loading animation, transition to video screen
+  // Transition to video screen
   setTimeout(() => {
     document.getElementById('loading-screen').classList.add('hidden');
     document.getElementById('video-screen').classList.remove('hidden');
@@ -14,20 +13,20 @@ document.addEventListener('DOMContentLoaded', () => {
     video.pause();
     video.play();
 
-    // Transition to mode selection after video ends
     video.onended = () => {
       document.getElementById('video-screen').classList.add('hidden');
       document.getElementById('mode-selection').classList.remove('hidden');
+      startQuoteSlideshow();
     };
 
-    // Fallback in case video duration is unknown or video fails to play
     setTimeout(() => {
       document.getElementById('video-screen').classList.add('hidden');
       document.getElementById('mode-selection').classList.remove('hidden');
+      startQuoteSlideshow();
     }, videoDuration);
   }, loadingAnimationDuration);
 
-  // Add Enter key support for sending messages
+  // Add Enter key support for chat input
   document.getElementById('chat-input').addEventListener('keypress', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -37,69 +36,281 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Feature box carousel
   let currentFeature = 0;
+  let featureTimer;
   const featureBoxes = document.querySelectorAll('.feature-box');
+
   function rotateFeatures() {
-    // Remove active class from previous feature and add to current
     featureBoxes.forEach(box => box.classList.remove('active'));
     featureBoxes[currentFeature].classList.add('active');
-    
-    // Move to the next feature, loop back to start if at the end
     currentFeature = (currentFeature + 1) % featureBoxes.length;
+    resetFeatureTimer();
   }
-  
-  // Initial call to set the first active feature
-  rotateFeatures(); 
-  // Set interval for rotation - slowed down to 3 seconds for better user experience
-  setInterval(rotateFeatures, 3000); // Rotates every 3 seconds
+
+  function resetFeatureTimer() {
+    clearTimeout(featureTimer);
+    featureTimer = setTimeout(rotateFeatures, 5000);
+  }
+
+  featureBoxes.forEach((box, index) => {
+    box.addEventListener('mouseenter', () => {
+      clearTimeout(featureTimer);
+      featureBoxes.forEach(b => b.classList.remove('active'));
+      box.classList.add('active');
+      currentFeature = index;
+    });
+    box.addEventListener('mouseleave', resetFeatureTimer);
+  });
+
+  rotateFeatures();
+
+  // Quote slideshow
+  let currentQuote = 0;
+  const quotes = document.querySelectorAll('.quote');
+  function rotateQuotes() {
+    quotes.forEach(quote => quote.classList.remove('active'));
+    quotes[currentQuote].classList.add('active');
+    currentQuote = (currentQuote + 1) % quotes.length;
+  }
+
+  function startQuoteSlideshow() {
+    rotateQuotes();
+    setInterval(rotateQuotes, 4000);
+  }
 });
 
+// Chat management
+let chatHistory = [];
+let currentChat = { id: null, messages: [] };
+let soundContext = new (window.AudioContext || window.webkitAudioContext)();
+
+// Play retro click sound
+function playClickSound() {
+  const oscillator = soundContext.createOscillator();
+  oscillator.type = 'square';
+  oscillator.frequency.setValueAtTime(800, soundContext.currentTime);
+  oscillator.connect(soundContext.destination);
+  oscillator.start();
+  oscillator.stop(soundContext.currentTime + 0.05);
+}
+
+// Generate unique chat ID
+function generateChatId() {
+  return 'chat-' + Date.now();
+}
+
 /**
- * Handles the selection of an operating mode and transitions to the homepage.
- * @param {string} mode - The selected operating mode (e.g., 'departure', 'sailing').
+ * Backend placeholder for fetching AI response.
+ * @param {string} message - The user's input message.
+ * @returns {string} - The AI's response.
+ */
+function getAIResponse(message) {
+  console.log('Placeholder: Fetching AI response for:', message);
+  // Backend team to implement actual AI response logic
+  return `AI: Processing "${message}"...`;
+}
+
+/**
+ * Handles mode selection and transitions.
+ * @param {string} mode - The selected mode.
  */
 function selectMode(mode) {
+  playClickSound();
+  if (currentChat.messages.length && mode !== 'sailing') {
+    saveCurrentChat();
+  }
   document.getElementById('mode-selection').classList.add('hidden');
-  document.getElementById('homepage').classList.remove('hidden');
-  // In a real app, 'mode' could be used to initialize homepage differently
+  if (mode === 'departure') {
+    document.getElementById('departure-prep').classList.remove('hidden');
+  } else if (mode === 'sailing') {
+    document.getElementById('homepage').classList.remove('hidden');
+    if (!currentChat.id) startNewChat();
+    updateChatHistory();
+  } else if (mode === 'voyage-history') {
+    document.getElementById('voyage-history').classList.remove('hidden');
+  }
   console.log(`Operating mode selected: ${mode}`);
 }
 
 /**
- * Toggles the visibility of the settings dashboard.
+ * Toggles settings dashboard.
  */
 function toggleSettings() {
+  playClickSound();
   const dashboard = document.getElementById('settings-dashboard');
   dashboard.classList.toggle('active');
 }
 
 /**
- * Sends a message from the chat input, displays a summary in history,
- * and a generic AI response.
+ * Sends a message and fetches AI response.
  */
 function sendMessage() {
+  playClickSound();
   const input = document.getElementById('chat-input');
-  const history = document.getElementById('chat-history');
-  const response = document.getElementById('chat-response');
-  
-  // Only proceed if the input is not empty
-  if (input.value.trim()) {
-    // Create a summary for chat history
-    // Takes the first 5 words of the input to form a summary
-    const summary = `You: ${input.value.split(' ').slice(0, 5).join(' ')}${input.value.split(' ').length > 5 ? '...' : ''}`;
-    const historyItem = document.createElement('div');
-    historyItem.textContent = summary;
-    history.appendChild(historyItem);
-    
-    // Create a generic AI response
-    const aiResponse = document.createElement('div');
-    aiResponse.textContent = `AI: Understood. Analyzing "${input.value}"...`;
-    response.appendChild(aiResponse);
-    
-    // Clear the input field
-    input.value = '';
+  const responseBox = document.getElementById('chat-response');
 
-    // Scroll chat history and response boxes to the bottom to show latest messages
-    history.scrollTop = history.scrollHeight;
-    response.scrollTop = response.scrollHeight;
+  if (input.value.trim()) {
+    const userMessage = document.createElement('div');
+    userMessage.classList.add('message', 'user-message');
+    userMessage.textContent = `You: ${input.value}`;
+    responseBox.appendChild(userMessage);
+    currentChat.messages.push({ type: 'user', text: input.value });
+
+    const aiResponseText = getAIResponse(input.value);
+    const aiMessage = document.createElement('div');
+    aiMessage.classList.add('message', 'ai-message');
+    aiMessage.textContent = aiResponseText;
+    responseBox.appendChild(aiMessage);
+    currentChat.messages.push({ type: 'ai', text: aiResponseText });
+
+    input.value = '';
+    responseBox.scrollTop = responseBox.scrollHeight;
+  }
+}
+
+/**
+ * Updates chat history display.
+ */
+function updateChatHistory() {
+  const historyBox = document.getElementById('chat-history');
+  historyBox.innerHTML = '';
+
+  chatHistory.forEach(chat => {
+    const summary = chat.messages
+      .filter(m => m.type === 'user')
+      .map(m => m.text.split(' ').slice(0, 5).join(' ') + (m.text.split(' ').length > 5 ? '...' : ''))
+      .join(' | ');
+    if (summary) {
+      const historyItem = document.createElement('div');
+      historyItem.textContent = summary;
+      historyItem.onclick = () => loadChat(chat.id);
+      historyBox.appendChild(historyItem);
+    }
+  });
+
+  historyBox.scrollTop = historyBox.scrollHeight;
+}
+
+/**
+ * Loads a previous chat.
+ * @param {string} chatId - The chat ID to load.
+ */
+function loadChat(chatId) {
+  playClickSound();
+  currentChat = chatHistory.find(c => c.id === chatId) || { id: chatId, messages: [] };
+  const responseBox = document.getElementById('chat-response');
+  responseBox.innerHTML = '';
+
+  currentChat.messages.forEach(msg => {
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message', msg.type === 'user' ? 'user-message' : 'ai-message');
+    messageDiv.textContent = `${msg.type === 'user' ? 'You' : 'AI'}: ${msg.text}`;
+    responseBox.appendChild(messageDiv);
+  });
+
+  responseBox.scrollTop = responseBox.scrollHeight;
+}
+
+/**
+ * Saves the current chat to history.
+ */
+function saveCurrentChat() {
+  if (currentChat.messages.length) {
+    const existingChat = chatHistory.find(c => c.id === currentChat.id);
+    if (existingChat) {
+      existingChat.messages = currentChat.messages;
+    } else {
+      chatHistory.push({ ...currentChat });
+    }
+    currentChat = { id: null, messages: [] };
+  }
+}
+
+/**
+ * Starts a new chat session.
+ */
+function startNewChat() {
+  playClickSound();
+  saveCurrentChat();
+  currentChat = { id: generateChatId(), messages: [] };
+  document.getElementById('chat-response').innerHTML = '';
+  updateChatHistory();
+}
+
+/**
+ * Navigates back to mode selection.
+ */
+function backToHome() {
+  playClickSound();
+  saveCurrentChat();
+  document.getElementById('departure-prep').classList.add('hidden');
+  document.getElementById('voyage-history').classList.add('hidden');
+  document.getElementById('homepage').classList.add('hidden');
+  document.getElementById('mode-selection').classList.remove('hidden');
+}
+
+/**
+ * Placeholder for uploading documents.
+ */
+function uploadDocuments() {
+  playClickSound();
+  const fileInput = document.getElementById('document-upload');
+  if (fileInput.files.length) {
+    console.log('Placeholder: Uploading document:', fileInput.files[0].name);
+    fileInput.value = '';
+  }
+}
+
+/**
+ * Placeholder for uploading logistics.
+ */
+function uploadLogistics() {
+  playClickSound();
+  const fileInput = document.getElementById('logistics-upload');
+  if (fileInput.files.length) {
+    console.log('Placeholder: Uploading logistics:', fileInput.files[0].name);
+    fileInput.value = '';
+  }
+}
+
+/**
+ * Placeholder for uploading crew logs.
+ */
+function uploadCrewLog() {
+  playClickSound();
+  const fileInput = document.getElementById('crew-log-upload');
+  if (fileInput.files.length) {
+    console.log('Placeholder: Uploading crew log:', fileInput.files[0].name);
+    fileInput.value = '';
+  }
+}
+
+/**
+ * Placeholder for fetching weather.
+ */
+function getWeather() {
+  playClickSound();
+  console.log('Placeholder: Get Weather function called');
+}
+
+/**
+ * Switches voyage tabs.
+ * @param {string} tab - The tab to display.
+ */
+function showVoyageTab(tab) {
+  playClickSound();
+  const completedTab = document.getElementById('completed-voyages');
+  const ongoingTab = document.getElementById('ongoing-voyages');
+  const tabs = document.querySelectorAll('.voyage-tabs .tab');
+
+  if (tab === 'completed') {
+    completedTab.classList.remove('hidden');
+    ongoingTab.classList.add('hidden');
+    tabs[0].classList.add('active');
+    tabs[1].classList.remove('active');
+  } else {
+    completedTab.classList.add('hidden');
+    ongoingTab.classList.remove('hidden');
+    tabs[0].classList.remove('active');
+    tabs[1].classList.add('active');
   }
 }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Ship Dashboard</title>
   <link rel="stylesheet" href="styles.css">
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=OCR-A&display=swap" rel="stylesheet">
 </head>
 <body>
   <!-- Loading Screen -->
@@ -24,23 +24,81 @@
   <!-- Mode Selection Screen -->
   <div id="mode-selection" class="mode-selection hidden">
     <h1 class="mode-title">Select Operating Mode</h1>
+    <div class="quote-slideshow">
+      <div class="quote active">"Not all treasure is silver and gold, mate." — Jack Sparrow</div>
+      <div class="quote">"The problem is not the problem. The problem is your attitude about the problem." — Jack Sparrow</div>
+      <div class="quote">"Why is the rum always gone?" — Jack Sparrow</div>
+      <div class="quote">"A smooth sea never made a skilled sailor." — Franklin D. Roosevelt</div>
+      <div class="quote">"The sea, once it casts its spell, holds one in its net of wonder forever." — Jacques Cousteau</div>
+    </div>
     <div class="mode-buttons">
-      <button onclick="selectMode('departure')">Departure Prep</button>
-      <button onclick="selectMode('sailing')">Sailing Mode</button>
+      <button onclick="selectMode('departure')" class="retro-button">Departure Prep</button>
+      <button onclick="selectMode('sailing')" class="retro-button">Sailing Mode</button>
+      <button onclick="selectMode('voyage-history')" class="retro-button">Voyage History</button>
     </div>
   </div>
 
-  <!-- Homepage -->
+  <!-- Departure Prep Screen -->
+  <div id="departure-prep" class="departure-prep hidden">
+    <button class="back-to-home retro-button" onclick="backToHome()">Back to Home</button>
+    <div class="prep-grid">
+      <div class="prep-option">
+        <h3>Upload Documents</h3>
+        <p>Upload necessary voyage documents</p>
+        <input type="file" id="document-upload" accept=".pdf" class="upload-button" onchange="uploadDocuments()">
+        <label for="document-upload" class="retro-button upload-label">Upload PDF</label>
+      </div>
+      <div class="prep-option">
+        <h3>Logistics Upload</h3>
+        <p>Upload logistics and cargo details</p>
+        <input type="file" id="logistics-upload" accept=".pdf" class="upload-button" onchange="uploadLogistics()">
+        <label for="logistics-upload" class="retro-button upload-label">Upload PDF</label>
+      </div>
+      <div class="prep-option">
+        <h3>Crew Log Upload</h3>
+        <p>Upload crew details and logs</p>
+        <input type="file" id="crew-log-upload" accept=".pdf" class="upload-button" onchange="uploadCrewLog()">
+        <label for="crew-log-upload" class="retro-button upload-label">Upload PDF</label>
+      </div>
+      <div class="prep-option">
+        <h3>Get Weather</h3>
+        <p>Retrieve latest weather updates</p>
+        <button onclick="getWeather()" class="retro-button weather-button">Get Weather</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Voyage History Screen -->
+  <div id="voyage-history" class="voyage-history hidden">
+    <button class="back-to-home retro-button" onclick="backToHome()">Back to Home</button>
+    <h2>Voyage History</h2>
+    <div class="voyage-tabs">
+      <button class="tab retro-button active" onclick="showVoyageTab('completed')">Completed</button>
+      <button class="tab retro-button" onclick="showVoyageTab('ongoing')">Ongoing</button>
+    </div>
+    <div id="completed-voyages" class="voyage-list">
+      <h3>Completed Voyages</h3>
+      <div class="voyage-item">Voyage #001 - Completed on 2025-07-20</div>
+      <div class="voyage-item">Voyage #002 - Completed on 2025-06-15</div>
+    </div>
+    <div id="ongoing-voyages" class="voyage-list hidden">
+      <h3>Ongoing Voyages</h3>
+      <div class="voyage-item">Voyage #003 - In Progress</div>
+    </div>
+  </div>
+
+  <!-- Homepage (Sailing Mode) -->
   <div id="homepage" class="homepage hidden">
+    <button class="back-to-home retro-button" onclick="backToHome()">Back to Home</button>
     <header>
       <span class="settings-icon" onclick="toggleSettings()">⚙️</span>
       <div class="settings-dashboard" id="settings-dashboard">
         <h2>Control Panel</h2>
         <ul>
-          <li>Profile</li>
-          <li>Notifications</li>
-          <li>Theme</li>
-          <li>Logout</li>
+          <li class="retro-menu-item">Profile</li>
+          <li class="retro-menu-item">Notifications</li>
+          <li class="retro-menu-item">Theme</li>
+          <li class="retro-menu-item">Logout</li>
         </ul>
       </div>
       <h2>Ship Assistant</h2>
@@ -50,20 +108,23 @@
     <div class="main-content">
       <div class="left-panel">
         <div class="card chat-response-box">
-          <h3>Ship Systems Online</h3>
+          <div class="chat-header">
+            <h3>Ship Systems Online</h3>
+            <button onclick="startNewChat()" class="retro-button new-chat-button">New Chat</button>
+          </div>
           <div id="chat-response" class="chat-response"></div>
         </div>
         <div class="feature-grid">
           <div class="feature-box" id="weather-forecast">
-            <img src="https://via.placeholder.com/150" alt="Weather Forecast">
+            <img src="https://via.placeholder.com/150?text=Weather" alt="Weather Forecast">
             <h4>Weather Forecast</h4>
           </div>
           <div class="feature-box" id="party-mode">
-            <img src="https://via.placeholder.com/150" alt="Party Mode">
+            <img src="https://via.placeholder.com/150?text=Party" alt="Party Mode">
             <h4>Party Mode</h4>
           </div>
           <div class="feature-box" id="ship-routing">
-            <img src="https://via.placeholder.com/150" alt="Ship Routing">
+            <img src="https://via.placeholder.com/150?text=Routing" alt="Ship Routing">
             <h4>Ship Routing</h4>
           </div>
         </div>
@@ -72,7 +133,7 @@
         <div id="chat-history" class="chat-history"></div>
         <div class="chat-input">
           <textarea id="chat-input" rows="3" placeholder="Type your command..."></textarea>
-          <button onclick="sendMessage()">Send</button>
+          <button onclick="sendMessage()" class="retro-button">Send</button>
         </div>
       </div>
     </div>
