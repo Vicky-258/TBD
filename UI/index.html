@@ -19,7 +19,6 @@
       <source src="assets/intro.mp4" type="video/mp4">
       Your browser does not support the video tag.
     </video>
-    <div class="video-watermark-cover"></div>
   </div>
 
   <!-- Mode Selection Screen -->
@@ -36,7 +35,6 @@
       <button onclick="selectMode('departure')" class="retro-button">Departure Prep</button>
       <button onclick="selectMode('sailing')" class="retro-button">Sailing Mode</button>
       <button onclick="selectMode('voyage-history')" class="retro-button">Voyage History</button>
-      <button onclick="exitApp()" class="retro-button exit-button">Exit App</button>
     </div>
   </div>
 
@@ -49,6 +47,8 @@
         <p>Upload necessary voyage documents</p>
         <input type="file" id="document-upload" accept=".pdf" class="upload-button" onchange="uploadDocuments()">
         <label for="document-upload" class="retro-button upload-label">Upload PDF</label>
+        <pre id="upload-status" style="margin-top:10px; color:#00ffcc; font-family:monospace;"></pre>
+
       </div>
       <div class="prep-option">
         <h3>Logistics Upload</h3>
@@ -62,11 +62,16 @@
         <input type="file" id="crew-log-upload" accept=".pdf" class="upload-button" onchange="uploadCrewLog()">
         <label for="crew-log-upload" class="retro-button upload-label">Upload PDF</label>
       </div>
-      <div class="prep-option">
-        <h3>Get Weather</h3>
-        <p>Retrieve latest weather updates</p>
-        <button onclick="getWeather()" class="retro-button weather-button">Get Weather</button>
-      </div>
+<div class="prep-option">
+  <h3>Get Weather</h3>
+  <p>Retrieve latest weather updates</p>
+  <button onclick="getWeather()" class="retro-button weather-button">Get Weather</button>
+
+  <!-- 📦 Output Box -->
+  <pre id="weather-output"
+    style="margin-top:10px; background:#1a1a1a; color:#00ffcc; padding:1em; border-radius:8px; font-family:monospace; white-space:pre-wrap; max-height:300px; overflow:auto;"></pre>
+</div>
+
     </div>
   </div>
 
@@ -135,7 +140,6 @@
         <div id="chat-history" class="chat-history"></div>
         <div class="chat-input">
           <textarea id="chat-input" rows="3" placeholder="Type your command..."></textarea>
-          <button id="mic-button" onclick="toggleRecording()" class="retro-button mic-button" title="Record Audio">🎤</button>
           <button onclick="sendMessage()" class="retro-button">Send</button>
         </div>
       </div>
