@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Ship Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading-screen" class="loading-screen">
+    <h1 class="loading-text">Initializing Ship Systems...</h1>
+    <p class="loading-subtext">Navigating the digital seas...</p>
+  </div>
+
+  <!-- Video Screen -->
+  <div id="video-screen" class="video-screen hidden">
+    <video id="intro-video" autoplay muted>
+      <source src="assets/intro.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+
+  <!-- Mode Selection Screen -->
+  <div id="mode-selection" class="mode-selection hidden">
+    <h1 class="mode-title">Select Operating Mode</h1>
+    <div class="mode-buttons">
+      <button onclick="selectMode('departure')">Departure Prep</button>
+      <button onclick="selectMode('sailing')">Sailing Mode</button>
+    </div>
+  </div>
+
+  <!-- Homepage -->
+  <div id="homepage" class="homepage hidden">
+    <header>
+      <span class="settings-icon" onclick="toggleSettings()">⚙️</span>
+      <div class="settings-dashboard" id="settings-dashboard">
+        <h2>Control Panel</h2>
+        <ul>
+          <li>Profile</li>
+          <li>Notifications</li>
+          <li>Theme</li>
+          <li>Logout</li>
+        </ul>
+      </div>
+      <h2>Ship Assistant</h2>
+      <span class="user-greeting">Welcome, Captain</span>
+    </header>
+
+    <div class="main-content">
+      <div class="left-panel">
+        <div class="card chat-response-box">
+          <h3>Ship Systems Online</h3>
+          <div id="chat-response" class="chat-response"></div>
+        </div>
+        <div class="feature-grid">
+          <div class="feature-box" id="weather-forecast">
+            <img src="https://via.placeholder.com/150" alt="Weather Forecast">
+            <h4>Weather Forecast</h4>
+          </div>
+          <div class="feature-box" id="party-mode">
+            <img src="https://via.placeholder.com/150" alt="Party Mode">
+            <h4>Party Mode</h4>
+          </div>
+          <div class="feature-box" id="ship-routing">
+            <img src="https://via.placeholder.com/150" alt="Ship Routing">
+            <h4>Ship Routing</h4>
+          </div>
+        </div>
+      </div>
+      <div class="card chatbot-box">
+        <div id="chat-history" class="chat-history"></div>
+        <div class="chat-input">
+          <textarea id="chat-input" rows="3" placeholder="Type your command..."></textarea>
+          <button onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
