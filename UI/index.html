@@ -35,6 +35,7 @@
       <button onclick="selectMode('departure')" class="retro-button">Departure Prep</button>
       <button onclick="selectMode('sailing')" class="retro-button">Sailing Mode</button>
       <button onclick="selectMode('voyage-history')" class="retro-button">Voyage History</button>
+            <button onclick="exitApp()" class="retro-button exit-button">Exit App</button>
     </div>
   </div>
 
@@ -140,6 +141,7 @@
         <div id="chat-history" class="chat-history"></div>
         <div class="chat-input">
           <textarea id="chat-input" rows="3" placeholder="Type your command..."></textarea>
+          <button id="mic-button" onclick="toggleRecording()" class="retro-button mic-button" title="Record Audio">🎤</button>
           <button onclick="sendMessage()" class="retro-button">Send</button>
         </div>
       </div>
