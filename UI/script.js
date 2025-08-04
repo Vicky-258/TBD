@@ -3,6 +3,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadingAnimationDuration = 3000;
   const videoDuration = 5000;
 
+  // Audio recording variables
+  let mediaRecorder;
+  let audioChunks = [];
+  let isRecording = false;
+
   // Transition to video screen
   setTimeout(() => {
     document.getElementById('loading-screen').classList.add('hidden');
@@ -19,11 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
       startQuoteSlideshow();
     };
 
-    setTimeout(() => {
-      document.getElementById('video-screen').classList.add('hidden');
-      document.getElementById('mode-selection').classList.remove('hidden');
-      startQuoteSlideshow();
-    }, videoDuration);
+    // Removed the automatic timeout that was causing the bug
   }, loadingAnimationDuration);
 
   // Add Enter key support for chat input
@@ -313,4 +314,226 @@ function showVoyageTab(tab) {
     tabs[0].classList.remove('active');
     tabs[1].classList.add('active');
   }
+}
+
+/**
+ * Exit the application
+ */
+function exitApp() {
+  playClickSound();
+  // For Electron app, use the electron API to close the app
+  if (typeof require !== 'undefined') {
+    try {
+      const { remote } = require('electron');
+      if (remote) {
+        remote.getCurrentWindow().close();
+      } else {
+        // If remote is not available, try the new way
+        const { ipcRenderer } = require('electron');
+        ipcRenderer.send('close-app');
+      }
+    } catch (error) {
+      console.log('Electron API not available, using window.close()');
+      window.close();
+    }
+  } else {
+    // Fallback for web browsers
+    if (confirm('Are you sure you want to exit the application?')) {
+      window.close();
+    }
+  }
+}
+
+/**
+ * Audio Recording Functionality
+ */
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+
+/**
+ * Toggle audio recording on/off
+ */
+async function toggleRecording() {
+  playClickSound();
+  const micButton = document.getElementById('mic-button');
+  
+  if (!isRecording) {
+    await startRecording();
+    micButton.classList.add('recording');
+    micButton.textContent = '⏹️'; // Stop icon
+    micButton.title = 'Stop Recording';
+  } else {
+    stopRecording();
+    micButton.classList.remove('recording');
+    micButton.textContent = '🎤'; // Microphone icon
+    micButton.title = 'Record Audio';
+  }
+}
+
+/**
+ * Start audio recording
+ */
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 44100
+      } 
+    });
+    
+    // Use the best available format for recording - simplified approach
+    let options = {};
+    if (MediaRecorder.isTypeSupported('audio/webm')) {
+      options.mimeType = 'audio/webm';
+    } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+      options.mimeType = 'audio/mp4';
+    }
+    
+    console.log('Recording with format:', options.mimeType || 'default');
+    
+    mediaRecorder = new MediaRecorder(stream, options);
+    audioChunks = [];
+    
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+        console.log('Audio chunk received, size:', event.data.size);
+      }
+    };
+    
+    mediaRecorder.onstop = () => {
+      const mimeType = mediaRecorder.mimeType || 'audio/webm';
+      const audioBlob = new Blob(audioChunks, { type: mimeType });
+      console.log('Recording stopped, blob size:', audioBlob.size, 'type:', audioBlob.type);
+      
+      // Convert to WAV and save
+      convertAndSaveAsWAV(audioBlob);
+      
+      // Stop all tracks to free up the microphone
+      stream.getTracks().forEach(track => track.stop());
+    };
+    
+    mediaRecorder.start();
+    isRecording = true;
+    console.log('Recording started...');
+    
+  } catch (error) {
+    console.error('Error accessing microphone:', error);
+    alert('Error accessing microphone. Please ensure microphone permissions are granted.');
+  }
+}
+
+/**
+ * Stop audio recording
+ */
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    isRecording = false;
+    console.log('Recording stopped.');
+  }
+}
+
+/**
+ * Convert audio blob to WAV format and save
+ */
+function convertAndSaveAsWAV(audioBlob) {
+  const fs = require('fs');
+  const path = require('path');
+  
+  // Define the audio file path in the project directory
+  const audioDir = path.join(__dirname, 'audio-recordings');
+  const audioFilePath = path.join(audioDir, 'ship-audio-recording.wav');
+  
+  // Create directory if it doesn't exist
+  if (!fs.existsSync(audioDir)) {
+    fs.mkdirSync(audioDir, { recursive: true });
+  }
+  
+  console.log('Converting and saving audio as WAV:', audioBlob.size, 'bytes');
+  
+  // Convert the recorded audio to WAV format
+  audioBlob.arrayBuffer().then(arrayBuffer => {
+    // Create an audio context to decode the audio
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    audioContext.decodeAudioData(arrayBuffer).then(audioBuffer => {
+      // Convert AudioBuffer to WAV
+      const wavArrayBuffer = audioBufferToWav(audioBuffer);
+      const buffer = Buffer.from(wavArrayBuffer);
+      
+      try {
+        // Write the WAV file (this will replace any existing file with the same name)
+        fs.writeFileSync(audioFilePath, buffer);
+        console.log('WAV audio saved to:', audioFilePath);
+        
+      } catch (error) {
+        console.error('Error saving WAV file:', error);
+      }
+    }).catch(error => {
+      console.error('Error decoding audio data:', error);
+    });
+  }).catch(error => {
+    console.error('Error converting audio blob:', error);
+  });
+}
+
+/**
+ * Convert AudioBuffer to WAV format
+ */
+function audioBufferToWav(audioBuffer) {
+  const length = audioBuffer.length;
+  const sampleRate = audioBuffer.sampleRate;
+  const numberOfChannels = audioBuffer.numberOfChannels;
+  const bytesPerSample = 2;
+  const blockAlign = numberOfChannels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = length * blockAlign;
+  const bufferSize = 44 + dataSize;
+  
+  const arrayBuffer = new ArrayBuffer(bufferSize);
+  const view = new DataView(arrayBuffer);
+  
+  // WAV header
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  let offset = 0;
+  writeString(offset, 'RIFF'); offset += 4;
+  view.setUint32(offset, bufferSize - 8, true); offset += 4;
+  writeString(offset, 'WAVE'); offset += 4;
+  writeString(offset, 'fmt '); offset += 4;
+  view.setUint32(offset, 16, true); offset += 4;
+  view.setUint16(offset, 1, true); offset += 2;
+  view.setUint16(offset, numberOfChannels, true); offset += 2;
+  view.setUint32(offset, sampleRate, true); offset += 4;
+  view.setUint32(offset, byteRate, true); offset += 4;
+  view.setUint16(offset, blockAlign, true); offset += 2;
+  view.setUint16(offset, 16, true); offset += 2;
+  writeString(offset, 'data'); offset += 4;
+  view.setUint32(offset, dataSize, true); offset += 4;
+  
+  // Convert audio samples to 16-bit PCM
+  const channels = [];
+  for (let i = 0; i < numberOfChannels; i++) {
+    channels.push(audioBuffer.getChannelData(i));
+  }
+  
+  for (let i = 0; i < length; i++) {
+    for (let channel = 0; channel < numberOfChannels; channel++) {
+      const sample = Math.max(-1, Math.min(1, channels[channel][i]));
+      const int16 = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(offset, int16, true);
+      offset += 2;
+    }
+  }
+  
+  return arrayBuffer;
 }
