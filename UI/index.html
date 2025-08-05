@@ -4,9 +4,15 @@
   <meta charset="UTF-8">
   <title>Ship Dashboard</title>
   <link rel="stylesheet" href="styles.css">
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=OCR-A&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!-- Window Control Buttons -->
+  <div class="window-controls">
+    <button class="window-btn minimize-btn" onclick="minimizeWindow()" title="Minimize">─</button>
+    <button class="window-btn restore-btn" onclick="toggleMaximize()" title="Restore/Maximize">□</button>
+    <button class="window-btn close-btn" onclick="exitApp()" title="Close">✕</button>
+  </div>
   <!-- Loading Screen -->
   <div id="loading-screen" class="loading-screen">
     <h1 class="loading-text">Initializing Ship Systems...</h1>
@@ -19,6 +25,7 @@
       <source src="assets/intro.mp4" type="video/mp4">
       Your browser does not support the video tag.
     </video>
+    <div class="video-watermark-cover"></div>
   </div>
 
   <!-- Mode Selection Screen -->
@@ -98,15 +105,14 @@
   <!-- Homepage (Sailing Mode) -->
   <div id="homepage" class="homepage hidden">
     <button class="back-to-home retro-button" onclick="backToHome()">Back to Home</button>
+    <button class="new-chat retro-button" onclick="newChat()">New Chat</button>
     <header>
       <span class="settings-icon" onclick="toggleSettings()">⚙️</span>
       <div class="settings-dashboard" id="settings-dashboard">
-        <h2>Control Panel</h2>
+        <h2 >Chat History</h2>
         <ul>
-          <li class="retro-menu-item">Profile</li>
-          <li class="retro-menu-item">Notifications</li>
-          <li class="retro-menu-item">Theme</li>
-          <li class="retro-menu-item">Logout</li>
+         
+          <li class="retro-menu-item"></li>
         </ul>
       </div>
       <h2>Ship Assistant</h2>
@@ -115,26 +121,33 @@
 
     <div class="main-content">
       <div class="left-panel">
-        <div class="card chat-response-box">
-          <div class="chat-header">
-            <h3>Ship Systems Online</h3>
-            <button onclick="startNewChat()" class="retro-button new-chat-button">New Chat</button>
+        <div class="routing-summary">  
+          <h3>Ship Routing Summary</h3>
+        <div class="map-placeholder">Placeholder: Routing Map (Backend TBD)</div>
+        <p>Summary: Awaiting backend data for route details.</p>
+      </div>
+        <div class="carousel-container">
+          <button class="carousel-nav prev-btn" onclick="prevSlide()">◄</button>
+          <div class="feature-carousel">
+            <div class="feature-box" id="weather-forecast">
+              <img src="assets/weatherforecasting.jpg" alt="Weather Forecast">
+              <h4>Weather Forecast</h4>
+            </div>
+            
+            <div class="feature-box" id="ship-routing">
+              <img src="assets/shiprouting.jpg" alt="Ship Routing">
+              <h4>Ship Routing</h4>
+            </div>
+            <div class="feature-box" id="checklist">
+              <img src="assets/checklist.jpg" alt="Checklist">
+              <h4>Crew Details</h4>
+            </div>
+            <div class="feature-box" id="party-mode">
+              <img src="assets/party.jpg" alt="Party Mode">
+              <h4>Party Mode</h4>
+            </div>
           </div>
-          <div id="chat-response" class="chat-response"></div>
-        </div>
-        <div class="feature-grid">
-          <div class="feature-box" id="weather-forecast">
-            <img src="https://via.placeholder.com/150?text=Weather" alt="Weather Forecast">
-            <h4>Weather Forecast</h4>
-          </div>
-          <div class="feature-box" id="party-mode">
-            <img src="https://via.placeholder.com/150?text=Party" alt="Party Mode">
-            <h4>Party Mode</h4>
-          </div>
-          <div class="feature-box" id="ship-routing">
-            <img src="https://via.placeholder.com/150?text=Routing" alt="Ship Routing">
-            <h4>Ship Routing</h4>
-          </div>
+          <button class="carousel-nav next-btn" onclick="nextSlide()">►</button>
         </div>
       </div>
       <div class="card chatbot-box">

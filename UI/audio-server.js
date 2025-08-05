@@ -9,7 +9,7 @@ const port = 3001;
 // Create audio folder if it doesn't exist
 const audioFolder = path.join(__dirname, 'audio-recordings');
 if (!fs.existsSync(audioFolder)) {
-  fs.mkdirSync(audioFolder);
+  fs.mkdirSync(audioFolder, { recursive: true });
 }
 
 // Configure multer for file uploads
@@ -18,7 +18,6 @@ const storage = multer.diskStorage({
     cb(null, audioFolder);
   },
   filename: function (req, file, cb) {
-    // Always use the same filename to replace the previous recording
     cb(null, 'ship-audio-recording.wav');
   }
 });
@@ -40,8 +39,6 @@ app.post('/upload-audio', upload.single('audio'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No audio file uploaded' });
   }
-  
-  console.log('Audio file saved:', req.file.filename);
   res.json({ 
     message: 'Audio uploaded successfully',
     filename: req.file.filename,
@@ -60,7 +57,9 @@ app.get('/current-audio', (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Audio server running at http://localhost:${port}`);
-  console.log(`Audio files will be saved to: ${audioFolder}`);
+// Health check endpoint
+app.get('/ping', (req, res) => {
+  res.status(200).send('Server is running');
 });
+
+app.listen(port, () => {});
