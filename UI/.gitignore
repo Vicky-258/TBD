@@ -1,6 +1,10 @@
 # Node modules
 node_modules/
 
+# Package lock files - platform-specific, regenerated on install
+package-lock.json
+yarn.lock
+
 # Audio recordings - created at runtime, don't commit to GitHub
 audio-recordings/
 
