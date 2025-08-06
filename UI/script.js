@@ -160,22 +160,24 @@ async function toggleRecording() {
           audioBlob = await convertToWav(audioBlob);
 
           try {
-            const formData = new FormData();
-            formData.append('audio', audioBlob, 'ship-audio-recording.wav');
-
-            const response = await fetch('http://localhost:3001/upload-audio', {
-              method: 'POST',
-              body: formData
+            // Optional: still upload if needed
+            await fetch("http://localhost:3001/upload-audio", {
+              method: "POST",
+              body: (() => {
+                const form = new FormData();
+                form.append("audio", audioBlob, "ship-audio-recording.wav");
+                return form;
+              })(),
             });
 
-            if (!response.ok) {
-              console.error('Audio upload failed:', await response.text());
-            }
+            // 👇🔥 New: call the chat API with it!
+            await sendVoiceToChatAPI(audioBlob);
           } catch (err) {
-            console.error('Error uploading audio:', err.message);
+            console.error(
+              "Error during audio upload or chat API:",
+              err.message
+            );
           }
-        } else {
-          console.error('No audio chunks recorded');
         }
       };
 
@@ -217,138 +219,163 @@ async function toggleRecording() {
   }
 }
 
-// DOM loaded logic
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM fully loaded, initializing app');
-  const loadingScreen = document.getElementById('loading-screen');
-  const videoScreen = document.getElementById('video-screen');
-  const modeSelection = document.getElementById('mode-selection');
+function appendMessage(type, text) {
+  const historyDiv = document.getElementById("chat-history");
+  const msg = document.createElement("div");
+  msg.classList.add("message", `${type}-message`);
+  msg.textContent = `${type === "user" ? "You" : "AI"}: ${text}`;
+  historyDiv.appendChild(msg);
+  historyDiv.scrollTop = historyDiv.scrollHeight;
+}
 
-  if (!loadingScreen || !videoScreen || !modeSelection) {
-    console.error('Required DOM elements missing:', { loadingScreen, videoScreen, modeSelection });
-    return;
+function createAIMessageBox() {
+  const historyDiv = document.getElementById("chat-history");
+  const aiMsg = document.createElement("div");
+  aiMsg.classList.add("message", "ai-message");
+  aiMsg.innerHTML = `<strong>AI:</strong> <span class="streamed-text"></span>`;
+  historyDiv.appendChild(aiMsg);
+  historyDiv.scrollTop = historyDiv.scrollHeight;
+  return aiMsg.querySelector(".streamed-text");
+}
+
+async function streamAPI(endpoint, formData, onChunk) {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok || !response.body)
+    throw new Error(`API Error! status: ${response.status}`);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    fullText += chunk;
+    if (onChunk) onChunk(chunk);
   }
 
-  // Load chat history
-  loadChatHistory();
+  return fullText;
+}
 
-  // Show loading screen, then video, then mode selection
-  timeoutId = setTimeout(() => {
-    loadingScreen.classList.add('hidden');
-    videoScreen.classList.remove('hidden');
+async function sendTextToChatAPI(userText) {
+  appendMessage("user", userText);
 
-    const video = document.getElementById('intro-video');
-    if (video) {
-      video.currentTime = 0;
-      video.play().catch(err => console.error('Video playback error:', err));
+  const span = createAIMessageBox();
+  let rawMarkdown = "";
 
-      video.onended = () => {
-        if (currentMode === null) {
-          videoScreen.classList.add('hidden');
-          modeSelection.classList.remove('hidden');
-          currentMode = 'mode-selection';
-          startQuoteSlideshow();
-        }
-      };
+  const formData = new FormData();
+  formData.append("user_input", userText);
 
-      timeoutId = setTimeout(() => {
-        if (currentMode === null) {
-          videoScreen.classList.add('hidden');
-          modeSelection.classList.remove('hidden');
-          currentMode = 'mode-selection';
-          startQuoteSlideshow();
-        }
-      }, videoDuration);
-    } else {
-      console.error('Intro video element not found');
-      videoScreen.classList.add('hidden');
-      modeSelection.classList.remove('hidden');
-      currentMode = 'mode-selection';
-      startQuoteSlideshow();
-    }
-  }, loadingAnimationDuration);
-
-  const chatInput = document.getElementById('chat-input');
-  if (chatInput) {
-    chatInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
+  try {
+    await streamAPI("http://localhost:8000/text-chat", formData, (chunk) => {
+      rawMarkdown += chunk;
+      span.innerHTML = marked.parse(rawMarkdown); // Render markdown
     });
-  } else {
-    console.error('Chat input element not found');
+
+    currentChat.messages.push({ type: "user", text: userText });
+    currentChat.messages.push({ type: "ai", text: rawMarkdown });
+  } catch (error) {
+    console.error("Text chat failed:", error);
+    span.innerHTML = `<i>AI: Sorry, something broke 🧨</i>`;
   }
+}
 
-  initializeCarousel();
-});
+async function sendVoiceToChatAPI(audioBlob) {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "recording.wav");
 
-// Chat system
-function playClickSound() {
-  if (soundContext) {
-    try {
-      const oscillator = soundContext.createOscillator();
-      oscillator.type = 'square';
-      oscillator.frequency.setValueAtTime(800, soundContext.currentTime);
-      oscillator.connect(soundContext.destination);
-      oscillator.start();
-      oscillator.stop(soundContext.currentTime + 0.05);
-    } catch (err) {
-      console.error('Error playing click sound:', err);
+  const historyDiv = document.getElementById("chat-history");
+  const span = createAIMessageBox();
+  let rawMarkdown = "";
+
+  try {
+    const transcriptHeader = await fetch("http://localhost:8000/voice-chat", {
+      method: "POST",
+      body: formData,
+    });
+
+    const transcript =
+      transcriptHeader.headers.get("x-user-transcript") || "🎤 Voice message";
+    appendMessage("user", transcript);
+
+    const reader = transcriptHeader.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      rawMarkdown += chunk;
+      span.innerHTML = marked.parse(rawMarkdown);
+      historyDiv.scrollTop = historyDiv.scrollHeight;
     }
+
+    currentChat.messages.push({ type: "user", text: transcript });
+    currentChat.messages.push({ type: "ai", text: rawMarkdown });
+  } catch (err) {
+    console.error("Voice chat failed:", err);
+    span.innerHTML = `<i>AI: I tripped over the audio wire 🎧💥</i>`;
   }
 }
 
-function generateChatId() {
-  return 'chat-' + Date.now();
-}
+async function sendImageToChatAPI(imageFile, userText) {
+  appendMessage("user", userText || "🖼️ Image uploaded");
 
-function getAIResponse(message) {
-  console.log('Fetching AI response for:', message);
-  return `AI: Processing "${message}"...`;
-}
+  const span = createAIMessageBox();
+  let rawMarkdown = "";
 
-function formatTimestamp(timestamp) {
-  const date = new Date(timestamp);
-  const today = new Date();
-  const isToday = date.toDateString() === today.toDateString();
-  if (isToday) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } else {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const formData = new FormData();
+  formData.append("image", imageFile);
+  formData.append("user_input", userText);
+
+  try {
+    await streamAPI("http://localhost:8000/image-chat", formData, (chunk) => {
+      rawMarkdown += chunk;
+      span.innerHTML = marked.parse(rawMarkdown);
+    });
+
+    currentChat.messages.push({ type: "user", text: userText });
+    currentChat.messages.push({ type: "ai", text: rawMarkdown });
+  } catch (error) {
+    console.error("Image chat failed:", error);
+    span.innerHTML = `<i>AI: My pixels got scrambled 🖼️🧨</i>`;
   }
 }
 
-function sendMessage() {
+
+async function sendMessage() {
   playClickSound();
-  const input = document.getElementById('chat-input');
-  const historyDiv = document.getElementById('chat-history');
+  const input = document.getElementById("chat-input");
+  const imageInput = document.getElementById("image-upload");
 
-  if (!input || !historyDiv) {
-    console.error('Chat input or history div not found:', { input, historyDiv });
-    return;
+  if (!input || !imageInput) return;
+
+  const userText = input.value.trim();
+  const imageFile = imageInput.files[0];
+
+  if (!userText && !imageFile) return;
+
+  // clear input
+  input.value = "";
+  imageInput.value = "";
+
+  if (imageFile) {
+    await sendImageToChatAPI(imageFile, userText);
+  } else {
+    await sendTextToChatAPI(userText);
   }
 
-  if (input.value.trim()) {
-    const userText = input.value;
-
-    const userMsg = document.createElement('div');
-    userMsg.classList.add('message', 'user-message');
-    userMsg.textContent = `You: ${userText}`;
-    historyDiv.appendChild(userMsg);
-    currentChat.messages.push({ type: 'user', text: userText });
-
-    const aiResponseText = getAIResponse(userText);
-    const aiMsg = document.createElement('div');
-    aiMsg.classList.add('message', 'ai-message');
-    aiMsg.textContent = aiResponseText;
-    historyDiv.appendChild(aiMsg);
-    currentChat.messages.push({ type: 'ai', text: aiResponseText });
-
-    input.value = '';
-    historyDiv.scrollTop = historyDiv.scrollHeight;
-  }
+  clearImage();
 }
+
+
 
 function saveCurrentChat() {
   if (currentChat.messages.length) {
@@ -366,6 +393,49 @@ function saveCurrentChat() {
     updateChatHistoryUI();
   }
 }
+
+function handleImageUpload(event) {
+  const file = event.target.files[0];
+  if (file && file.type.startsWith("image/")) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const preview = document.getElementById("image-preview");
+      preview.src = e.target.result;
+      document.getElementById("image-preview-container").style.display = "flex";
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function clearImage() {
+  const input = document.getElementById("image-upload");
+  const preview = document.getElementById("image-preview");
+  input.value = ""; // Reset file input
+  preview.src = "";
+  document.getElementById("image-preview-container").style.display = "none";
+}
+
+const chatInput = document.getElementById("chat-input");
+const chatInputContainer = document.querySelector(".chat-input");
+
+chatInput.addEventListener("focus", () => {
+  chatInputContainer.classList.add("focus-mode");
+});
+
+chatInput.addEventListener("blur", () => {
+  setTimeout(() => {
+    // Delay allows clicking SEND if needed before reset
+    chatInputContainer.classList.remove("focus-mode");
+  }, 200);
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    chatInput.blur(); // exit focus mode
+    chatInputContainer.classList.remove("focus-mode");
+  }
+});
+
 
 function updateChatHistoryUI() {
   const settingsMenu = document.querySelector('.settings-dashboard ul');
@@ -494,11 +564,21 @@ function toggleSettings() {
 
 // Carousel
 function getVisibleBoxes() {
-  const width = window.innerWidth;
-  if (width <= 480) return 1;
-  if (width <= 768) return 2;
-  return 3;
+  const wrapper = document.querySelector(".feature-carousel-wrapper");
+  const box = document.querySelector(".feature-box");
+
+  if (!wrapper || !box) return 1; // Fallback to 1 if something goes wrong
+
+  const wrapperWidth = wrapper.offsetWidth;
+  const boxStyle = getComputedStyle(box);
+  const boxWidth =
+    box.offsetWidth +
+    parseFloat(boxStyle.marginLeft || 0) +
+    parseFloat(boxStyle.marginRight || 0);
+
+  return Math.floor(wrapperWidth / boxWidth);
 }
+
 
 function initializeCarousel() {
   console.log('Initializing carousel');
@@ -526,7 +606,9 @@ function updateCarousel() {
     console.log(`Adjusted currentSlide to maxSlide: ${currentSlide}`);
   }
 
-  const boxWidth = 295;
+  const boxWidth =
+    featureBoxes[0].offsetWidth +
+    parseFloat(getComputedStyle(featureBoxes[0]).marginRight || 0);
   const translateX = -(currentSlide * boxWidth);
 
   carousel.style.transform = `translateX(${translateX}px)`;
@@ -614,4 +696,110 @@ function startQuoteSlideshow() {
 // Update carousel on window resize
 window.addEventListener('resize', () => {
   updateCarousel();
+});
+
+// DOM loaded logic
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM fully loaded, initializing app');
+  const loadingScreen = document.getElementById('loading-screen');
+  const videoScreen = document.getElementById('video-screen');
+  const modeSelection = document.getElementById('mode-selection');
+
+  if (!loadingScreen || !videoScreen || !modeSelection) {
+    console.error('Required DOM elements missing:', { loadingScreen, videoScreen, modeSelection });
+    return;
+  }
+
+  // Load chat history
+  loadChatHistory();
+
+  // Show loading screen, then video, then mode selection
+  timeoutId = setTimeout(() => {
+    loadingScreen.classList.add('hidden');
+    videoScreen.classList.remove('hidden');
+
+    const video = document.getElementById('intro-video');
+    if (video) {
+      video.currentTime = 0;
+      video.play().catch(err => console.error('Video playback error:', err));
+
+      video.onended = () => {
+        if (currentMode === null) {
+          videoScreen.classList.add('hidden');
+          modeSelection.classList.remove('hidden');
+          currentMode = 'mode-selection';
+          startQuoteSlideshow();
+        }
+      };
+
+      timeoutId = setTimeout(() => {
+        if (currentMode === null) {
+          videoScreen.classList.add('hidden');
+          modeSelection.classList.remove('hidden');
+          currentMode = 'mode-selection';
+          startQuoteSlideshow();
+        }
+      }, videoDuration);
+    } else {
+      console.error('Intro video element not found');
+      videoScreen.classList.add('hidden');
+      modeSelection.classList.remove('hidden');
+      currentMode = 'mode-selection';
+      startQuoteSlideshow();
+    }
+  }, loadingAnimationDuration);
+
+  const chatInput = document.getElementById('chat-input');
+  if (chatInput) {
+    chatInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+  } else {
+    console.error('Chat input element not found');
+  }
+
+  initializeCarousel();
+});
+
+// Chat system
+function playClickSound() {
+  if (soundContext) {
+    try {
+      const oscillator = soundContext.createOscillator();
+      oscillator.type = 'square';
+      oscillator.frequency.setValueAtTime(800, soundContext.currentTime);
+      oscillator.connect(soundContext.destination);
+      oscillator.start();
+      oscillator.stop(soundContext.currentTime + 0.05);
+    } catch (err) {
+      console.error('Error playing click sound:', err);
+    }
+  }
+}
+
+function generateChatId() {
+  return 'chat-' + Date.now();
+}
+
+function formatTimestamp(timestamp) {
+  const date = new Date(timestamp);
+  const today = new Date();
+  const isToday = date.toDateString() === today.toDateString();
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } else {
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  fetch("http://localhost:8000/reset-session", {
+    method: "POST",
+  }).then((res) => {
+    if (res.ok) console.log("✅ Session reset on page load");
+    else console.error("❌ Failed to reset session");
+  });
 });

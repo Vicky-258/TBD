@@ -152,15 +152,32 @@
       </div>
       <div class="card chatbot-box">
         <div id="chat-history" class="chat-history"></div>
-        <div class="chat-input">
-          <textarea id="chat-input" rows="3" placeholder="Type your command..."></textarea>
-          <button id="mic-button" onclick="toggleRecording()" class="retro-button mic-button" title="Record Audio">🎤</button>
-          <button onclick="sendMessage()" class="retro-button">Send</button>
-        </div>
+<!-- ⬆️ Image Preview First -->
+<div id="image-preview-container" class="image-preview-container" style="display: none;">
+  <img id="image-preview" src="" alt="Preview" />
+  <button onclick="clearImage()" class="retro-button clear-image-button">❌ Clear</button>
+</div>
+
+<!-- 📝 Then Chat Input -->
+<div class="chat-input">
+  <textarea id="chat-input" rows="2" placeholder="Type your command..."></textarea>
+
+  <button id="mic-button" onclick="toggleRecording()" class="retro-button mic-button" title="Record Audio">🎤</button>
+
+  <label for="image-upload" class="retro-button upload-button" title="Attach Image">📷</label>
+  <input type="file" id="image-upload" accept="image/*" style="display: none;" onchange="handleImageUpload(event)" />
+
+  <button onclick="sendMessage()" class="retro-button">SEND</button>
+</div>
+
+
+</div>
+
       </div>
     </div>
   </div>
 
   <script src="script.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </body>
 </html>

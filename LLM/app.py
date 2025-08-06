@@ -1,6 +1,8 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse
+from fastapi import Request
 import asyncio
 import tempfile
 from fastapi import Query
@@ -37,6 +39,8 @@ blip_processor = None
 blip_model = None
 rag_index = None
 rag_docs = None
+session_histories = {}
+
 
 # --- Startup Initialization ---
 @app.on_event("startup")
@@ -54,35 +58,29 @@ async def startup_models():
 def health():
     return {"status": "Assistant is live and ready 🤖"}
 
-# --- 1. TEXT CHAT ---
+
 @app.post("/text-chat")
-async def text_chat(user_input: str = Form(...)):
+async def text_chat(user_input: str = Form(...), session_id: str = Form("default")):
     try:
         context, distances = retrieve_context(user_input, rag_index, rag_docs)
+        context_text = "\n- ".join(context) if distances[0] < DISTANCE_THRESHOLD else None
 
-        if distances[0] < DISTANCE_THRESHOLD:
-            print("Context found ✅")
-            prompt = f"""
-Use the following pieces of context to inform your response.
+        # Get or create chat history
+        chat_history = session_histories.get(session_id, [])
 
-Context:
-- {"\n- ".join(context)}
+        # Get streaming generator with context and history
+        stream = get_gemma_response(llm, chat_history, user_input, context_text)
 
-User: {user_input}
-Assistant:"""
-        else:
-            print("No context. Using raw prompt.")
-            prompt = user_input
+        # Save updated history
+        session_histories[session_id] = chat_history
 
-        response = get_gemma_response(llm, [], prompt)
-        return {"response": response}
+        return StreamingResponse(stream(), media_type="text/plain")
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-# --- 2. VOICE CHAT ---
 @app.post("/voice-chat")
-async def voice_chat(audio: UploadFile = File(...)):
+async def voice_chat(audio: UploadFile = File(...), session_id: str = Form("default")):
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
             tmp.write(await audio.read())
@@ -92,27 +90,21 @@ async def voice_chat(audio: UploadFile = File(...)):
         os.remove(audio_path)
 
         context, distances = retrieve_context(user_text, rag_index, rag_docs)
-        if distances[0] < DISTANCE_THRESHOLD:
-            prompt = f"""
-Use the following pieces of context to inform your response.
+        context_text = "\n- ".join(context) if distances[0] < DISTANCE_THRESHOLD else None
 
-Context:
-- {"\n- ".join(context)}
+        chat_history = session_histories.get(session_id, [])
+        stream = get_gemma_response(llm, chat_history, user_text, context_text)
+        session_histories[session_id] = chat_history
 
-User: {user_text}
-Assistant:"""
-        else:
-            prompt = user_text
-
-        response = get_gemma_response(llm, [], prompt)
-        return {"transcript": user_text, "response": response}
+        headers = {"x-user-transcript": user_text}
+        return StreamingResponse(stream(), media_type="text/plain", headers=headers)
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-# --- 3. IMAGE CHAT ---
+
 @app.post("/image-chat")
-async def image_chat(image: UploadFile = File(...), user_input: str = Form(...)):
+async def image_chat(image: UploadFile = File(...), user_input: str = Form(...), session_id: str = Form("default")):
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_img:
             tmp_img.write(await image.read())
@@ -121,23 +113,16 @@ async def image_chat(image: UploadFile = File(...), user_input: str = Form(...))
         caption = caption_image(blip_processor, blip_model, img_path)
         os.remove(img_path)
 
-        combined_prompt = f"The user said: {user_input}\nThe image appears to show: {caption}"
-        context, distances = retrieve_context(combined_prompt, rag_index, rag_docs)
+        combined_input = f"The user said: {user_input}\nThe image appears to show: {caption}"
+        context, distances = retrieve_context(combined_input, rag_index, rag_docs)
+        context_text = "\n- ".join(context) if distances[0] < DISTANCE_THRESHOLD else None
 
-        if distances[0] < DISTANCE_THRESHOLD:
-            prompt = f"""
-Use the following pieces of context to inform your response.
+        chat_history = session_histories.get(session_id, [])
+        stream = get_gemma_response(llm, chat_history, combined_input, context_text)
+        session_histories[session_id] = chat_history
 
-Context:
-- {"\n- ".join(context)}
-
-User: {combined_prompt}
-Assistant:"""
-        else:
-            prompt = combined_prompt
-
-        response = get_gemma_response(llm, [], prompt)
-        return {"caption": caption, "response": response}
+        headers = {"x-image-caption": caption}
+        return StreamingResponse(stream(), media_type="text/plain", headers=headers)
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -208,3 +193,9 @@ async def upload_document(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+@app.post("/reset-session")
+def reset_session():
+    global chat_history
+    chat_history = []  # Clear it!
+    print("🔄 Chat history reset due to frontend reload")
+    return {"status": "reset"}
