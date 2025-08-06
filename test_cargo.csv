@@ -1,0 +1,4 @@
+voyage_id,bill_of_lading_number,description,cargo_type,quantity,unit,stowage_location,is_hazardous,imo_class,special_handling_notes
+1,BOL-001,Automobile Parts,Container,20,TEU,Bay 10-15,0,,Handle with care
+1,BOL-002,Textiles,Container,15,TEU,Bay 16-20,0,,
+2,BOL-003,Iron Ore,Bulk,50000,Metric Tons,Hold 3,0,,

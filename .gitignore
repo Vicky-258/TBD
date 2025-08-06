@@ -1,0 +1,24 @@
+# Python virtual environment
+/venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# IDE and editor folders
+.vscode/
+.idea/
+
+# Build artifacts
+/dist/
+/build/
+*.spec
+
+# Node.js dependencies
+/node_modules/
+
+# Weather logs
+/weather_logs/
+
+# Database file
+*.db

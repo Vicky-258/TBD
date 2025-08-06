@@ -1,0 +1,35 @@
+{
+  "name": "ship-routing-app",
+  "version": "1.0.0",
+  "description": "A desktop application for ship routing.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "keywords": [],
+  "author": "Raghul",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.shiprouting.app",
+    "productName": "Ship Router",
+    "win": {
+      "target": "nsis"
+    },
+    "files": [
+      "frontend/**/*",
+      "main.js",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/backend",
+        "to": "backend"
+      }
+    ]
+  }
+}

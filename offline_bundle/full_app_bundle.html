@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ship Routing Application (Offline Bundle)</title>
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Embedded CSS -->
+    <style>
+        body{font-family:'Inter',sans-serif;margin:0;padding:0;background-color:#f0f2f5;overflow:hidden}#app{position:relative;width:100vw;height:100vh}#map{height:100%;width:100%;z-index:10}#ui-panel{position:absolute;top:20px;left:20px;z-index:20;background-color:white;padding:24px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.1);width:100%;max-width:380px;display:flex;flex-direction:column;gap:16px}#ui-panel h1{font-size:24px;font-weight:700;color:#1f2937;margin:0 0 8px 0}.form-group{display:flex;flex-direction:column}.form-group label{font-size:14px;font-weight:500;color:#4b5563;margin-bottom:6px}select{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;background-color:#f9fafb;font-size:14px}.port-selection-group{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tip{font-size:12px;color:#6b7280;text-align:center;margin-top:-8px}.button-group{display:grid;grid-template-columns:1fr 1fr;gap:12px}button{padding:10px 16px;font-size:14px;font-weight:600;border-radius:8px;border:none;cursor:pointer;transition:background-color .2s}#calculate-route-btn{background-color:#2563eb;color:white}#calculate-route-btn:disabled{background-color:#9ca3af;cursor:not-allowed}#clear-route-btn{background-color:#e5e7eb;color:#374151}#route-info{background-color:#f9fafb;padding:16px;border-radius:8px;border:1px solid #e5e7eb}#route-info h2{font-size:16px;font-weight:600;margin:0 0 12px 0}.info-grid{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px}.info-grid span:nth-child(odd){color:#6b7280}.info-grid span:nth-child(even){font-weight:500;text-align:right}.disclaimer{font-size:11px;color:#16a34a;text-align:center;margin-top:12px;font-weight:500}#weather-reports{display:flex;flex-direction:column;gap:12px;margin-top:4px}.weather-box{background-color:#f3f4f6;padding:12px;border-radius:8px;border:1px solid #e5e7eb}.weather-box h3{font-size:14px;font-weight:600;color:#374151;margin:0 0 8px 0}#message-box{padding:12px;border-radius:8px;font-size:14px;font-weight:500;text-align:center}.hidden{display:none!important}.custom-marker-icon{text-align:center;color:white;font-weight:bold;border-radius:50%;line-height:20px;box-shadow:0 2px 5px rgba(0,0,0,0.3)}.start-icon{background-color:#22c55e;border:2px solid white}.end-icon{background-color:#ef4444;border:2px solid white}
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="map"></div>
+        <div id="ui-panel">
+            <h1>Ship Router (Offline)</h1>
+            <div class="form-group">
+                <label for="ship-select">Ship Type</label>
+                <select id="ship-select"></select>
+            </div>
+            <div class="port-selection-group">
+                <div class="form-group">
+                    <label for="start-port-select">Start Port</label>
+                    <select id="start-port-select"><option value="">Click or select</option></select>
+                </div>
+                <div class="form-group">
+                    <label for="end-port-select">End Port</label>
+                    <select id="end-port-select"><option value="">Click or select</option></select>
+                </div>
+            </div>
+            <p class="tip">Tip: Right-click on the map to set start/end points.</p>
+            <div class="button-group">
+                <button id="calculate-route-btn" disabled>Calculate Route</button>
+                <button id="clear-route-btn">Clear</button>
+            </div>
+            <div id="route-info" class="hidden">
+                <h2>Route Details</h2>
+                <div class="info-grid">
+                    <span>Distance:</span><span id="info-distance">--</span>
+                    <span>Est. Time:</span><span id="info-time">--</span>
+                    <span>Est. Fuel:</span><span id="info-fuel">--</span>
+                </div>
+                <p class="disclaimer">Offline Mode: Showing A* route on a medium-res grid.</p>
+            </div>
+            <!-- Weather Report Section -->
+            <div id="weather-reports" class="hidden">
+                <div class="weather-box" id="start-weather">
+                    <h3>Weather at Start Port</h3>
+                    <div class="info-grid">
+                        <span>Wave Height:</span><span id="start-wave-height">--</span>
+                        <span>Wind Wave:</span><span id="start-wind-wave">--</span>
+                        <span>Sea Temp:</span><span id="start-sea-temp">--</span>
+                    </div>
+                </div>
+                <div class="weather-box" id="end-weather">
+                    <h3>Weather at End Port</h3>
+                    <div class="info-grid">
+                        <span>Wave Height:</span><span id="end-wave-height">--</span>
+                        <span>Wind Wave:</span><span id="end-wind-wave">--</span>
+                        <span>Sea Temp:</span><span id="end-sea-temp">--</span>
+                    </div>
+                </div>
+            </div>
+            <div id="message-box" class="hidden"></div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- Embedded Data ---
+        const portsData = [
+            { "name": "Aabenraa, Denmark", "coords": [55.03, 9.42] }, { "name": "Aalborg, Denmark", "coords": [57.05, 9.92] }, { "name": "Aarhus, Denmark", "coords": [56.15, 10.22] }, { "name": "Aberdeen, UK", "coords": [57.15, -2.08] }, { "name": "Abidjan, Ivory Coast", "coords": [5.27, -3.98] }, { "name": "Abu Dhabi, UAE", "coords": [24.47, 54.37] }, { "name": "Acapulco, Mexico", "coords": [16.85, -99.9] }, { "name": "Adelaide, Australia", "coords": [-34.92, 138.6] }, { "name": "Aden, Yemen", "coords": [12.78, 45.02] }, { "name": "Agadir, Morocco", "coords": [30.42, -9.6] }, { "name": "Alexandria, Egypt", "coords": [31.2, 29.92] }, { "name": "Algeciras, Spain", "coords": [36.13, -5.45] }, { "name": "Algiers, Algeria", "coords": [36.77, 3.05] }, { "name": "Amsterdam, Netherlands", "coords": [52.37, 4.9] }, { "name": "Anchorage, USA", "coords": [61.22, -149.9] }, { "name": "Antwerp, Belgium", "coords": [51.22, 4.4] }, { "name": "Aqaba, Jordan", "coords": [29.52, 35.0] }, { "name": "Auckland, New Zealand", "coords": [-36.85, 174.77] }, { "name": "Bahia Blanca, Argentina", "coords": [-38.72, -62.27] }, { "name": "Baltimore, USA", "coords": [39.28, -76.62] }, { "name": "Bangkok, Thailand", "coords": [13.75, 100.5] }, { "name": "Barcelona, Spain", "coords": [41.38, 2.18] }, { "name": "Barrow-in-Furness, UK", "coords": [54.12, -3.23] }, { "name": "Basra, Iraq", "coords": [30.5, 47.82] }, { "name": "Beira, Mozambique", "coords": [-19.83, 34.83] }, { "name": "Beirut, Lebanon", "coords": [33.9, 35.5] }, { "name": "Belem, Brazil", "coords": [-1.45, -48.5] }, { "name": "Belfast, UK", "coords": [54.6, -5.93] }, { "name": "Belize City, Belize", "coords": [17.5, -88.18] }, { "name": "Benghazi, Libya", "coords": [32.12, 20.07] }, { "name": "Bergen, Norway", "coords": [60.4, 5.32] }, { "name": "Bilbao, Spain", "coords": [43.25, -2.92] }, { "name": "Bissau, Guinea-Bissau", "coords": [11.85, -15.58] }, { "name": "Bora Bora, French Polynesia", "coords": [-16.5, -151.73] }, { "name": "Bordeaux, France", "coords": [44.83, -0.57] }, { "name": "Boston, USA", "coords": [42.35, -71.05] }, { "name": "Bremen, Germany", "coords": [53.08, 8.8] }, { "name": "Brest, France", "coords": [48.38, -4.48] }, { "name": "Bridgetown, Barbados", "coords": [13.1, -59.62] }, { "name": "Brisbane, Australia", "coords": [-27.47, 153.03] }, { "name": "Bristol, UK", "coords": [51.45, -2.6] }, { "name": "Buenos Aires, Argentina", "coords": [-34.6, -58.37] }, { "name": "Busan, South Korea", "coords": [35.1, 129.03] }, { "name": "Cadiz, Spain", "coords": [36.53, -6.3] }, { "name": "Cairns, Australia", "coords": [-16.92, 145.77] }, { "name": "Calais, France", "coords": [50.95, 1.85] }, { "name": "Calcutta, India", "coords": [22.57, 88.37] }, { "name": "Cape Town, South Africa", "coords": [-33.92, 18.42] }, { "name": "Cartagena, Colombia", "coords": [10.42, -75.53] }, { "name": "Casablanca, Morocco", "coords": [33.6, -7.62] }, { "name": "Charleston, USA", "coords": [32.78, -79.93] }, { "name": "Cherbourg, France", "coords": [49.63, -1.62] }, { "name": "Chicago, USA", "coords": [41.85, -87.65] }, { "name": "Chittagong, Bangladesh", "coords": [22.33, 91.83] }, { "name": "Cochin, India", "coords": [9.97, 76.27] }, { "name": "Colombo, Sri Lanka", "coords": [6.93, 79.85] }, { "name": "Copenhagen, Denmark", "coords": [55.68, 12.57] }, { "name": "Cork, Ireland", "coords": [51.9, -8.47] }, { "name": "Dakar, Senegal", "coords": [14.67, -17.43] }, { "name": "Dar es Salaam, Tanzania", "coords": [-6.8, 39.28] }, { "name": "Darwin, Australia", "coords": [-12.45, 130.83] }, { "name": "Doha, Qatar", "coords": [25.28, 51.53] }, { "name": "Douala, Cameroon", "coords": [4.05, 9.7] }, { "name": "Dover, UK", "coords": [51.13, 1.32] }, { "name": "Dubai, UAE", "coords": [25.25, 55.3] }, { "name": "Dublin, Ireland", "coords": [53.35, -6.27] }, { "name": "Durban, South Africa", "coords": [-29.87, 31.03] }, { "name": "Fortaleza, Brazil", "coords": [-3.72, -38.52] }, { "name": "Freetown, Sierra Leone", "coords": [8.48, -13.23] }, { "name": "Fremantle, Australia", "coords": [-32.05, 115.75] }, { "name": "Galveston, USA", "coords": [29.3, -94.8] }, { "name": "Gdansk, Poland", "coords": [54.35, 18.65] }, { "name": "Genoa, Italy", "coords": [44.4, 8.93] }, { "name": "Georgetown, Guyana", "coords": [6.8, -58.15] }, { "name": "Gibraltar, Gibraltar", "coords": [36.13, -5.35] }, { "name": "Glasgow, UK", "coords": [55.87, -4.25] }, { "name": "Gothenburg, Sweden", "coords": [57.7, 11.97] }, { "name": "Guayaquil, Ecuador", "coords": [-2.2, -79.88] }, { "name": "Haifa, Israel", "coords": [32.82, 34.98] }, { "name": "Halifax, Canada", "coords": [44.65, -63.57] }, { "name": "Hamburg, Germany", "coords": [53.55, 9.98] }, { "name": "Havana, Cuba", "coords": [23.13, -82.38] }, { "name": "Helsinki, Finland", "coords": [60.17, 24.93] }, { "name": "Ho Chi Minh City, Vietnam", "coords": [10.77, 106.7] }, { "name": "Hobart, Australia", "coords": [-42.88, 147.33] }, { "name": "Hong Kong, Hong Kong", "coords": [22.28, 114.15] }, { "name": "Honolulu, USA", "coords": [21.3, -157.85] }, { "name": "Houston, USA", "coords": [29.75, -95.37] }, { "name": "Incheon, South Korea", "coords": [37.48, 126.62] }, { "name": "Istanbul, Turkey", "coords": [41.0, 28.97] }, { "name": "Jakarta, Indonesia", "coords": [-6.2, 106.82] }, { "name": "Jeddah, Saudi Arabia", "coords": [21.5, 39.17] }, { "name": "Kaohsiung, Taiwan", "coords": [22.62, 120.3] }, { "name": "Karachi, Pakistan", "coords": [24.85, 67.0] }, { "name": "Kingston, Jamaica", "coords": [17.97, -76.8] }, { "name": "Kobe, Japan", "coords": [34.68, 135.2] }, { "name": "Kuala Lumpur, Malaysia", "coords": [3.13, 101.7] }, { "name": "Kuwait City, Kuwait", "coords": [29.37, 47.97] }, { "name": "La Spezia, Italy", "coords": [44.1, 9.82] }, { "name": "Lagos, Nigeria", "coords": [6.45, 3.4] }, { "name": "Las Palmas, Spain", "coords": [28.13, -15.42] }, { "name": "Le Havre, France", "coords": [49.48, 0.1] }, { "name": "Lima, Peru", "coords": [-12.05, -77.03] }, { "name": "Lisbon, Portugal", "coords": [38.72, -9.13] }, { "name": "Liverpool, UK", "coords": [53.4, -3.0] }, { "name": "Lome, Togo", "coords": [6.13, 1.22] }, { "name": "London, UK", "coords": [51.5, -0.12] }, { "name": "Long Beach, USA", "coords": [33.77, -118.2] }, { "name": "Los Angeles, USA", "coords": [34.05, -118.25] }, { "name": "Luanda, Angola", "coords": [-8.83, 13.23] }, { "name": "Male, Maldives", "coords": [4.17, 73.5] }, { "name": "Malmo, Sweden", "coords": [55.6, 13.0] }, { "name": "Manila, Philippines", "coords": [14.6, 120.98] }, { "name": "Maputo, Mozambique", "coords": [-25.97, 32.57] }, { "name": "Marseille, France", "coords": [43.3, 5.37] }, { "name": "Melbourne, Australia", "coords": [-37.8, 144.95] }, { "name": "Miami, USA", "coords": [25.77, -80.2] }, { "name": "Mombasa, Kenya", "coords": [-4.05, 39.67] }, { "name": "Montevideo, Uruguay", "coords": [-34.9, -56.17] }, { "name": "Montreal, Canada", "coords": [45.5, -73.57] }, { "name": "Mumbai, India", "coords": [19.07, 72.88] }, { "name": "Nagoya, Japan", "coords": [35.18, 136.9] }, { "name": "Naples, Italy", "coords": [40.85, 14.27] }, { "name": "Nassau, Bahamas", "coords": [25.05, -77.33] }, { "name": "New Orleans, USA", "coords": [29.95, -90.07] }, { "name": "New York, USA", "coords": [40.7, -74.0] }, { "name": "Nice, France", "coords": [43.7, 7.27] }, { "name": "Norfolk, USA", "coords": [36.85, -76.28] }, { "name": "Odessa, Ukraine", "coords": [46.48, 30.73] }, { "name": "Osaka, Japan", "coords": [34.68, 135.5] }, { "name": "Oslo, Norway", "coords": [59.9, 10.75] }, { "name": "Palermo, Italy", "coords": [38.12, 13.35] }, { "name": "Panama City, Panama", "coords": [8.98, -79.52] }, { "name": "Papeete, French Polynesia", "coords": [-17.53, -149.57] }, { "name": "Paramaribo, Suriname", "coords": [5.85, -55.17] }, { "name": "Penang, Malaysia", "coords": [5.4, 100.32] }, { "name": "Perth, Australia", "coords": [-31.95, 115.85] }, { "name": "Philadelphia, USA", "coords": [39.95, -75.17] }, { "name": "Phuket, Thailand", "coords": [7.88, 98.4] }, { "name": "Piraeus, Greece", "coords": [37.93, 23.65] }, { "name": "Port-au-Prince, Haiti", "coords": [18.53, -72.33] }, { "name": "Port Klang, Malaysia", "coords": [3.0, 101.4] }, { "name": "Port Louis, Mauritius", "coords": [-20.17, 57.5] }, { "name": "Port Moresby, Papua New Guinea", "coords": [-9.47, 147.15] }, { "name": "Port Said, Egypt", "coords": [31.25, 32.3] }, { "name": "Port of Spain, Trinidad and Tobago", "coords": [10.65, -61.5] }, { "name": "Portland, USA", "coords": [45.52, -122.67] }, { "name": "Porto, Portugal", "coords": [41.15, -8.62] }, { "name": "Prague, Czech Republic", "coords": [50.08, 14.43] }, { "name": "Punta Arenas, Chile", "coords": [-53.17, -70.9] }, { "name": "Quebec City, Canada", "coords": [46.8, -71.2] }, { "name": "Recife, Brazil", "coords": [-8.05, -34.88] }, { "name": "Reykjavik, Iceland", "coords": [64.15, -21.95] }, { "name": "Riga, Latvia", "coords": [56.95, 24.1] }, { "name": "Rio de Janeiro, Brazil", "coords": [-22.9, -43.2] }, { "name": "Rome, Italy", "coords": [41.9, 12.5] }, { "name": "Rotterdam, Netherlands", "coords": [51.92, 4.47] }, { "name": "Saint John, Canada", "coords": [45.27, -66.07] }, { "name": "Saint Petersburg, Russia", "coords": [59.93, 30.3] }, { "name": "Salvador, Brazil", "coords": [-12.97, -38.5] }, { "name": "San Diego, USA", "coords": [32.7, -117.15] }, { "name": "San Francisco, USA", "coords": [37.77, -122.42] }, { "name": "San Juan, Puerto Rico", "coords": [18.47, -66.1] }, { "name": "Santiago, Chile", "coords": [-33.45, -70.67] }, { "name": "Santo Domingo, Dominican Republic", "coords": [18.47, -69.9] }, { "name": "Santos, Brazil", "coords": [-23.95, -46.33] }, { "name": "Savannah, USA", "coords": [32.08, -81.1] }, { "name": "Seattle, USA", "coords": [47.6, -122.33] }, { "name": "Seoul, South Korea", "coords": [37.57, 126.98] }, { "name": "Shanghai, China", "coords": [31.23, 121.47] }, { "name": "Singapore, Singapore", "coords": [1.35, 103.8] }, { "name": "Southampton, UK", "coords": [50.9, -1.4] }, { "name": "Stockholm, Sweden", "coords": [59.33, 18.07] }, { "name": "Suez, Egypt", "coords": [29.97, 32.53] }, { "name": "Suva, Fiji", "coords": [-18.13, 178.42] }, { "name": "Sydney, Australia", "coords": [-33.87, 151.2] }, { "name": "Tallinn, Estonia", "coords": [59.43, 24.75] }, { "name": "Tampa, USA", "coords": [27.95, -82.45] }, { "name": "Tangier, Morocco", "coords": [35.78, -5.8] }, { "name": "Tel Aviv, Israel", "coords": [32.08, 34.78] }, { "name": "Tenerife, Spain", "coords": [28.47, -16.25] }, { "name": "Tianjin, China", "coords": [39.13, 117.2] }, { "name": "Tokyo, Japan", "coords": [35.68, 139.68] }, { "name": "Toronto, Canada", "coords": [43.65, -79.38] }, { "name": "Tripoli, Libya", "coords": [32.88, 13.18] }, { "name": "Tunis, Tunisia", "coords": [36.8, 10.18] }, { "name": "Ushuaia, Argentina", "coords": [-54.8, -68.3] }, { "name": "Valencia, Spain", "coords": [39.47, -0.38] }, { "name": "Valletta, Malta", "coords": [35.9, 14.5] }, { "name": "Valparaiso, Chile", "coords": [-33.05, -71.6] }, { "name": "Vancouver, Canada", "coords": [49.28, -123.12] }, { "name": "Venice, Italy", "coords": [45.43, 12.33] }, { "name": "Veracruz, Mexico", "coords": [19.2, -96.13] }, { "name": "Victoria, Canada", "coords": [48.42, -123.37] }, { "name": "Vigo, Spain", "coords": [42.23, -8.72] }, { "name": "Vladivostok, Russia", "coords": [43.12, 131.88] }, { "name": "Walvis Bay, Namibia", "coords": [-22.95, 14.5] }, { "name": "Wellington, New Zealand", "coords": [-41.28, 174.78] }, { "name": "Yokohama, Japan", "coords": [35.45, 139.63] }, { "name": "Zanzibar, Tanzania", "coords": [-6.17, 39.2] }
+        ];
+        const shipsData = [
+            { "type": "Container Ship (Feeder)", "speed_knots": 20, "fuel_per_nm": 0.2 }, { "type": "Container Ship (Panamax)", "speed_knots": 22, "fuel_per_nm": 0.25 }, { "type": "Container Ship (ULCV)", "speed_knots": 24, "fuel_per_nm": 0.35 }, { "type": "Bulk Carrier (Handysize)", "speed_knots": 14, "fuel_per_nm": 0.12 }, { "type": "Bulk Carrier (Panamax)", "speed_knots": 14, "fuel_per_nm": 0.15 }, { "type": "Bulk Carrier (Capesize)", "speed_knots": 15, "fuel_per_nm": 0.18 }, { "type": "Oil Tanker (Aframax)", "speed_knots": 15, "fuel_per_nm": 0.28 }, { "type": "Oil Tanker (VLCC)", "speed_knots": 15, "fuel_per_nm": 0.3 }, { "type": "Chemical Tanker", "speed_knots": 14, "fuel_per_nm": 0.16 }, { "type": "LNG Carrier", "speed_knots": 19, "fuel_per_nm": 0.22 }, { "type": "General Cargo Ship", "speed_knots": 13, "fuel_per_nm": 0.1 }, { "type": "Ro-Ro Cargo Ship", "speed_knots": 18, "fuel_per_nm": 0.19 }, { "type": "Car Carrier (PCTC)", "speed_knots": 20, "fuel_per_nm": 0.28 }, { "type": "Reefer (Refrigerated) Ship", "speed_knots": 19, "fuel_per_nm": 0.26 }, { "type": "Livestock Carrier", "speed_knots": 16, "fuel_per_nm": 0.20 }, { "type": "Heavy-Lift Ship", "speed_knots": 13, "fuel_per_nm": 0.32 }, { "type": "Offshore Supply Vessel (OSV)", "speed_knots": 14, "fuel_per_nm": 0.17 }, { "type": "Fishing Trawler", "speed_knots": 12, "fuel_per_nm": 0.09 }, { "type": "Ferry (Ro-Pax)", "speed_knots": 25, "fuel_per_nm": 0.45 }, { "type": "Cruise Ship", "speed_knots": 22, "fuel_per_nm": 0.4 }, { "type": "Yacht (Superyacht)", "speed_knots": 18, "fuel_per_nm": 0.55 }, { "type": "Tugboat (Ocean-going)", "speed_knots": 12, "fuel_per_nm": 0.14 }
+        ];
+        
+        // --- Embedded Medium Resolution Grid ---
+        const landWaterGrid = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+]
+        // --- Global State & UI Cache ---
+        let map, startMarker = null, endMarker = null, routeLine = null, settingStart = true;
+        const ui = {
+            shipSelect: document.getElementById('ship-select'),
+            startPortSelect: document.getElementById('start-port-select'),
+            endPortSelect: document.getElementById('end-port-select'),
+            calculateBtn: document.getElementById('calculate-route-btn'),
+            clearBtn: document.getElementById('clear-route-btn'),
+            routeInfoPanel: document.getElementById('route-info'),
+            infoDistance: document.getElementById('info-distance'),
+            infoTime: document.getElementById('info-time'),
+            infoFuel: document.getElementById('info-fuel'),
+            messageBox: document.getElementById('message-box'),
+            weatherReports: document.getElementById('weather-reports'),
+            startWaveHeight: document.getElementById('start-wave-height'),
+            startWindWave: document.getElementById('start-wind-wave'),
+            startSeaTemp: document.getElementById('start-sea-temp'),
+            endWaveHeight: document.getElementById('end-wave-height'),
+            endWindWave: document.getElementById('end-wind-wave'),
+            endSeaTemp: document.getElementById('end-sea-temp'),
+        };
+
+        // --- Renderer, Model, and A* Pathfinding ---
+        const renderer = {
+            initMap() { map = L.map('map').setView([20, 0], 3); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map); map.on('contextmenu', (e) => this.handleMapClick(e)); },
+            handleMapClick(e) { const type = settingStart ? 'start' : 'end'; this.setPoint(type, e.latlng); if (type === 'start') ui.startPortSelect.value = ""; else ui.endPortSelect.value = ""; settingStart = !settingStart; },
+            createMarkerIcon(type) { const className = type === 'start' ? 'start-icon' : 'end-icon'; return L.divIcon({ className: `custom-marker-icon ${className}`, html: `<b>${type.charAt(0).toUpperCase()}</b>`, iconSize: [24, 24], iconAnchor: [12, 12] }); },
+            setPoint(type, latlng) { const icon = this.createMarkerIcon(type); if (type === 'start') { if (startMarker) map.removeLayer(startMarker); startMarker = L.marker(latlng, { icon }).addTo(map); } else { if (endMarker) map.removeLayer(endMarker); endMarker = L.marker(latlng, { icon }).addTo(map); } this.updateUI(); },
+            drawRoute(path) { if (routeLine) map.removeLayer(routeLine); if (path && path.length > 0) { routeLine = L.polyline(path, { color: '#3b82f6', weight: 4, opacity: 0.8 }).addTo(map); map.fitBounds(routeLine.getBounds().pad(0.2)); } },
+            clearAll() { if (startMarker) map.removeLayer(startMarker); if (endMarker) map.removeLayer(endMarker); if (routeLine) map.removeLayer(routeLine); startMarker = null; endMarker = null; routeLine = null; settingStart = true; ui.startPortSelect.value = ""; ui.endPortSelect.value = ""; ui.routeInfoPanel.classList.add('hidden'); ui.weatherReports.classList.add('hidden'); this.updateUI(); this.hideMessage(); },
+            updateUI() { ui.calculateBtn.disabled = !(startMarker && endMarker); },
+            displayMessage(text, type = 'info') { ui.messageBox.textContent = text; ui.messageBox.className = 'message-box'; ui.messageBox.classList.add(type); setTimeout(() => this.hideMessage(), 5000); },
+            hideMessage() { ui.messageBox.classList.add('hidden'); }
+        };
+        const model = {
+            haversineDistance(latlng1, latlng2) { const R = 6371; const dLat = (latlng2.lat - latlng1.lat) * Math.PI / 180; const dLon = (latlng2.lng - latlng1.lng) * Math.PI / 180; const a = Math.sin(dLat / 2) ** 2 + Math.cos(latlng1.lat * Math.PI / 180) * Math.cos(latlng2.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2; const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); return (R * c) * 0.539957; },
+            calculatePathDistance(path) { let totalDistance = 0; for (let i = 0; i < path.length - 1; i++) { totalDistance += this.haversineDistance(L.latLng(path[i]), L.latLng(path[i + 1])); } return totalDistance; },
+            calculateRouteMetrics(distanceNm) { const ship = shipsData[ui.shipSelect.selectedIndex]; const timeHours = distanceNm / ship.speed_knots; const fuelTonnes = (distanceNm * ship.fuel_per_nm) / 1000; return { distance: distanceNm, time: timeHours, fuel: fuelTonnes }; }
+        };
+        const pathfinder = {
+            snapToGrid(coords, gridShape) { const [rows, cols] = gridShape; let row = Math.round(((-coords.lat + 90) / 180) * (rows - 1)); let col = Math.round(((coords.lng + 180) / 360) * (cols - 1)); return [Math.max(0, Math.min(rows - 1, row)), Math.max(0, Math.min(cols - 1, col))]; },
+            findNearestWater(startNode, grid, maxRadius = 10) { const [rows, cols] = [grid.length, grid[0].length]; const [r, c] = startNode; if (grid[r][c] === 0) return startNode; for (let i = 1; i <= maxRadius; i++) { for (let dc = -i; dc <= i; dc++) { let nr = r - i, nc = c + dc; if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] === 0) return [nr, nc]; nr = r + i; if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] === 0) return [nr, nc]; } for (let dr = -i + 1; dr < i; dr++) { let nr = r + dr, nc = c - i; if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] === 0) return [nr, nc]; nc = c + i; if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] === 0) return [nr, nc]; } } return null; },
+            astar(grid, start, end) { const [rows, cols] = [grid.length, grid[0].length]; const openSet = new Map(); openSet.set(`${start[0]},${start[1]}`, { node: start, f: 0, g: 0, h: 0 }); const cameFrom = new Map(); const gScore = new Map(); gScore.set(`${start[0]},${start[1]}`, 0); const neighbors = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]; while (openSet.size > 0) { let currentKey = openSet.keys().next().value; let current = openSet.get(currentKey); for (const [key, value] of openSet.entries()) { if (value.f < current.f) { current = value; currentKey = key; } } if (current.node[0] === end[0] && current.node[1] === end[1]) { let path = []; let temp = end; while (temp) { path.push(temp); temp = cameFrom.get(`${temp[0]},${temp[1]}`); } return path.reverse(); } openSet.delete(currentKey); for (const [dr, dc] of neighbors) { const neighbor = [current.node[0] + dr, current.node[1] + dc]; if (neighbor[0] < 0 || neighbor[0] >= rows || neighbor[1] < 0 || neighbor[1] >= cols || grid[neighbor[0]][neighbor[1]] === 1) continue; const moveCost = (dr !== 0 && dc !== 0) ? 1.414 : 1; const tentativeGScore = gScore.get(currentKey) + moveCost; const neighborKey = `${neighbor[0]},${neighbor[1]}`; if (!gScore.has(neighborKey) || tentativeGScore < gScore.get(neighborKey)) { cameFrom.set(neighborKey, current.node); gScore.set(neighborKey, tentativeGScore); const h = Math.abs(neighbor[0] - end[0]) + Math.abs(neighbor[1] - end[1]); openSet.set(neighborKey, { node: neighbor, f: tentativeGScore + h, g: tentativeGScore, h: h }); } } } return null; },
+            formatRoute(pathNodes, gridShape) { const [rows, cols] = gridShape; return pathNodes.map(node => { const lat = (-(node[0] / (rows - 1)) * 180 + 90); const lng = ((node[1] / (cols - 1)) * 360 - 180); return [parseFloat(lat.toFixed(6)), parseFloat(lng.toFixed(6))]; }); }
+        };
+
+        // --- Main Functions ---
+        function calculateAndDisplayRoute() {
+            if (!startMarker || !endMarker) return;
+            const start = startMarker.getLatLng(); const end = endMarker.getLatLng();
+            const gridShape = [landWaterGrid.length, landWaterGrid[0].length];
+            const startNodeInitial = pathfinder.snapToGrid(start, gridShape);
+            const endNodeInitial = pathfinder.snapToGrid(end, gridShape);
+            const startNode = pathfinder.findNearestWater(startNodeInitial, landWaterGrid);
+            const endNode = pathfinder.findNearestWater(endNodeInitial, landWaterGrid);
+            if (!startNode || !endNode) { renderer.displayMessage("Could not find a water entry point for start or end location.", "error"); return; }
+            const pathNodes = pathfinder.astar(landWaterGrid, startNode, endNode);
+            if (pathNodes) {
+                const routeCoords = pathfinder.formatRoute(pathNodes, gridShape);
+                renderer.drawRoute(routeCoords);
+                const distance = model.calculatePathDistance(routeCoords);
+                const metrics = model.calculateRouteMetrics(distance);
+                updateInfoPanel(metrics);
+            } else {
+                renderer.displayMessage("No valid sea route could be found.", "error");
+            }
+            displayOfflineWeather();
+        }
+        function updateInfoPanel(metrics) { if (metrics) { ui.infoDistance.textContent = `${metrics.distance.toFixed(0)} NM`; ui.infoTime.textContent = `${(metrics.time / 24).toFixed(1)} days`; ui.infoFuel.textContent = `${metrics.fuel.toFixed(1)} tonnes`; ui.routeInfoPanel.classList.remove('hidden'); } }
+        function displayOfflineWeather() {
+            ui.weatherReports.classList.remove('hidden');
+            const offlineText = "N/A (Offline)";
+            ui.startWaveHeight.textContent = offlineText;
+            ui.startWindWave.textContent = offlineText;
+            ui.startSeaTemp.textContent = offlineText;
+            ui.endWaveHeight.textContent = offlineText;
+            ui.endWindWave.textContent = offlineText;
+            ui.endSeaTemp.textContent = offlineText;
+        }
+
+        function initializeApp() {
+            renderer.initMap();
+            shipsData.forEach(ship => ui.shipSelect.add(new Option(ship.type, ship.type)));
+            portsData.sort((a, b) => a.name.localeCompare(b.name)).forEach(port => { const value = JSON.stringify(port.coords); ui.startPortSelect.add(new Option(port.name, value)); ui.endPortSelect.add(new Option(port.name, value)); });
+            ui.calculateBtn.addEventListener('click', calculateAndDisplayRoute);
+            ui.clearBtn.addEventListener('click', () => renderer.clearAll());
+            ui.startPortSelect.addEventListener('change', (e) => { if(e.target.value) { const coords = JSON.parse(e.target.value); renderer.setPoint('start', { lat: coords[0], lng: coords[1] }); settingStart = false; } });
+            ui.endPortSelect.addEventListener('change', (e) => { if(e.target.value) { const coords = JSON.parse(e.target.value); renderer.setPoint('end', { lat: coords[0], lng: coords[1] }); settingStart = true; } });
+            renderer.updateUI();
+            
+            // --- Set and display initial route ---
+            const startPort = portsData.find(p => p.name === "New York, USA");
+            const endPort = portsData.find(p => p.name === "London, UK");
+            if (startPort && endPort) {
+                renderer.setPoint('start', { lat: startPort.coords[0], lng: startPort.coords[1] });
+                renderer.setPoint('end', { lat: endPort.coords[0], lng: endPort.coords[1] });
+                ui.startPortSelect.value = JSON.stringify(startPort.coords);
+                ui.endPortSelect.value = JSON.stringify(endPort.coords);
+                calculateAndDisplayRoute();
+            } else {
+                renderer.displayMessage('Right-click map to set start/end points', 'info');
+            }
+        }
+
+        initializeApp();
+    });
+    </script>
+</body>
+</html>
